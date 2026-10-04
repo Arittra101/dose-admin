@@ -1,0 +1,62 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+.turbo/
+
+# production
+/build
+
+# secrets
+#
+# `.env.local` holds the Supabase service_role key, which bypasses RLS — it is
+# a full-database credential and must never reach the repo. The wildcard
+# ignores every env file and the negation below re-includes only the committed
+# template. Keep that negation AFTER the wildcard: in .gitignore the last
+# matching rule wins.
+.env*
+!.env.example
+
+# editors — personal tooling, not project config
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+
+# os
+.DS_Store
+Thumbs.db
+
+# certs
+*.pem
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# vercel
+.vercel
+
+# typescript — both are generated on build
+*.tsbuildinfo
+next-env.d.ts
+
+# agent tooling — shared config is committed, per-user overrides are not
+.claude/settings.local.json
