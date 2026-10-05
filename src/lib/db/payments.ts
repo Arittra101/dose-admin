@@ -16,8 +16,13 @@ import type {
  * person who sent money and has not been let in yet.
  *
  * Reads only. Resolving one writes to `pending_claims` (and to `users`, to
- * grant the premium), and this dashboard does not write — so the page built
- * on this module shows an operator the evidence and stops there.
+ * grant the premium), and this module does not — so the page built on it
+ * shows an operator the evidence and stops short of the decision.
+ *
+ * The one write the payments page does make is not here: it is
+ * `recordTransaction` in db/transactions.ts, which back-fills a bKash message
+ * the payment app failed to forward. That adds *evidence*, not a settlement,
+ * which is why it does not live in this file.
  *
  * Filters are expressed against `resolved_at`, not `status`. `status` is free
  * text owned by whatever writes these rows; `resolved_at` is null until one

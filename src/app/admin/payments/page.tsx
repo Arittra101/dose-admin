@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { RecordTransactionForm } from "@/app/admin/payments/RecordTransactionForm";
 import { FilterPill, FilterRow, Pagination, SearchForm } from "@/components/Filters";
 import { Forbidden, MissingServiceKey } from "@/components/Forbidden";
 import { KpiGrid, type Kpi } from "@/components/Kpi";
@@ -16,6 +17,7 @@ import {
   type PaymentFilter,
   type PendingPayment,
 } from "@/lib/db/payments";
+import { listPlans } from "@/lib/db/plans";
 import { hasServiceKey } from "@/lib/supabase/admin";
 import { formatBdt, formatCount, formatDate, formatDateTime, plural } from "@/lib/format";
 import { href, intParam, oneOf, strParam } from "@/lib/url";
@@ -51,11 +53,25 @@ export default async function PaymentsPage({
   const dir = oneOf(params.dir, ["asc", "desc"] as const, "desc");
   const page = intParam(params.page, 1);
   const q = strParam(params.q);
+  // Set by the "Record it" link on an unmatched row, so the id an operator
+  // must not retype arrives in the form already filled in.
+  const prefillTrx = strParam(params.record);
+  // The trigger requires transactions.amount = pending_claims.amount exactly,
+  // so the claim's own figure is carried across rather than retyped.
+  const prefillAmount = strParam(params.amount);
 
-  const [counts, result] = await Promise.all([
+  const [counts, result, plans] = await Promise.all([
     countPendingPayments(),
     listPendingPayments({ filter, dir, page, q }),
+    // resolve_pending_claim() approves a claim only when the paid amount is
+    // an active plan price, so the form needs the prices to warn before an
+    // operator records a row the trigger will reject as NOT_A_PLAN_PRICE.
+    listPlans(),
   ]);
+
+  const planAmounts = plans
+    .filter((plan) => plan.is_active && plan.amount !== null)
+    .map((plan) => Number(plan.amount));
 
   const carry = { status: filter, dir, q };
   const linkTo = (next: Record<string, string | number | undefined | null>) =>
@@ -168,7 +184,16 @@ export default async function PaymentsPage({
         </thead>
         <tbody>
           {result.rows.map((row) => (
-            <PaymentRow key={row.claim.id} row={row} />
+            <PaymentRow
+              key={row.claim.id}
+              row={row}
+              recordHref={`${linkTo({
+                ...carry,
+                page,
+                record: row.claim.trx_id,
+                amount: row.claim.amount ?? undefined,
+              })}#record-transaction`}
+            />
           ))}
         </tbody>
       </TableCard>
@@ -179,11 +204,23 @@ export default async function PaymentsPage({
         total={result.total}
         hrefFor={(p) => linkTo({ ...carry, page: p })}
       />
+
+      <RecordTransactionForm
+        defaultTrxId={prefillTrx || undefined}
+        defaultAmount={prefillAmount || undefined}
+        planAmounts={planAmounts}
+      />
     </div>
   );
 }
 
-function PaymentRow({ row }: { row: PendingPayment }) {
+function PaymentRow({
+  row,
+  recordHref,
+}: {
+  row: PendingPayment;
+  recordHref: string;
+}) {
   const { claim, user, transaction } = row;
   const pending = claim.resolved_at === null;
 
@@ -251,7 +288,21 @@ function PaymentRow({ row }: { row: PendingPayment }) {
             </p>
           </>
         ) : (
-          <p className="font-medium text-danger">No payment found</p>
+          <>
+            <p className="font-medium text-danger">No payment found</p>
+            {/* Only while the claim is open. A resolved claim with no
+                transaction is history, and back-filling it would change the
+                record of a decision already made. */}
+            {pending ? (
+              <Link
+                href={recordHref}
+                className="mt-1 inline-block text-small text-accent-ink underline underline-offset-2"
+                data-testid="record-link"
+              >
+                Record it
+              </Link>
+            ) : null}
+          </>
         )}
       </Td>
 
